@@ -1,3 +1,4 @@
 .venv
 .env
 pyproject.toml
+src/data/world_events/_download_cache/
