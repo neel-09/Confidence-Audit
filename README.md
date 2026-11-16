@@ -1,61 +1,110 @@
 # Confidence Audit
 
-A small experiment that measures whether an LLM is more confident in a
-recommendation when it is its own advice than when it forecasts the same event
-neutrally, and checks that confidence against what actually happened.
+**When Forecasts Become Advice — Auditing LLM Confidence Across Three Domains**
 
-| Domain | Folder names | Built by | Status |
+We test whether a language model reports different probabilities when it gives
+advice, evaluates an analyst's recommendation, or forecasts the same event
+neutrally. We score those probabilities against recorded outcomes in stocks,
+world events and Python package download growth.
+
+The completed main evaluation contains **235 task items and 960 scored
+responses**, plus 150 additional software forecasts in a post-hoc wording check.
+
+| Domain | Built by | Evaluation | Full results |
 |---|---|---|---|
-| Stock picks | `stock_analyser` | Poulami Chowdhury | 25-item run done (`results/stock_analyser/results.md`) |
-| World events (ForecastBench questions as decisions) | `world_events` | Abhroneel Chakraborty | 60-item run done (`results/world_events/results.md`) |
-| Software adoption (PyPI library growth) | `software_adoption` | Anurag | 150-item run done, one model (`results/software_adaption/results.md`) |
+| Stock picks | Poulami Chowdhury | 25 items, Muse and Nemotron | [Stock results](results/stock_analyser/results.md) |
+| World events | Abhroneel Chakraborty | 60 items, Muse and Nemotron | [World-event results](results/world_events/results.md) |
+| Python package download growth | Anurag Chakraborty | 150 items, Qwen3 | [Software results](results/software_adaption/results.md) |
 
-All domains share the models, the three frames, the metrics and one spend cap
-(`BUDGET_USD`, counted across every log under `results/`). The sections up to
-"World events domain" describe the stock domain.
+All three authors are affiliated with Heritage Institute of Technology, Kolkata.
+The software output directory is spelled `software_adaption` in this repository.
 
-The software adoption domain ran separately, in a Google Colab notebook, with
-Qwen3-30B-A3B-Instruct-2507 on Nebius Token Factory, so it uses neither of the
-shared models and its spend is not counted in `BUDGET_USD`.
+## Main findings
 
-## Results so far
+Probabilities use a 0–100 scale. Gaps below are in percentage points, with
+descriptive 95% bootstrap intervals in parentheses.
 
-Models: Muse Spark Open (Meta) at low reasoning effort and Nemotron 3 Ultra
-(NVIDIA) with reasoning off, both via Nebius Token Factory. Probabilities are on
-a 0 to 100 scale; intervals are 95% bootstrap intervals over items.
+| Domain and model | Advisor minus forecaster | Advisor minus third person | Recommendation hit rate |
+|---|---|---|---|
+| Stocks · Muse | -0.4 (-1.1 to +0.2) | 0.0 (0.0 to 0.0) | 52.0% (13/25) |
+| Stocks · Nemotron | +4.8 (+3.7 to +6.1) | +3.9 (+2.3 to +5.4) | 52.0% (13/25) |
+| World events · Muse | -1.1 (-3.4 to +1.3) | -1.7 (-4.2 to +0.7) | 68.3% (41/60) |
+| World events · Nemotron | +7.8 (+2.2 to +13.9) | +3.5 (-0.5 to +7.9) | 68.3% (41/60) |
+| Software · Qwen3 | +14.8 (+11.2 to +18.2) | +5.6 (+4.3 to +7.2) | 64.0% (96/150) |
 
-| | Stocks (n = 25) | World events (n = 60) |
-|---|---|---|
-| Nemotron Frame Gap (advisor minus forecaster) | +4.8 (+3.7 to +6.1) | +7.8 (+2.2 to +13.9) |
-| Nemotron ownership gap (advisor minus third-person) | +3.9 (+2.3 to +5.4) | +3.5 (-0.5 to +7.9) |
-| Muse Frame Gap | -0.4 (-1.1 to +0.2) | -1.1 (-3.4 to +1.3) |
-| Muse ownership gap | +0.0 (+0.0 to +0.0) | -1.7 (-4.2 to +0.7) |
-| Hit rate, both models | 52% | 68.3% (always recommending PLAN_NO: 65%) |
+- **Nemotron gave higher probabilities under the advisor prompt in both domains.**
+  Its advisor Brier score was worse than its neutral forecast on stocks
+  (0.261 versus 0.246) and better on world events (0.227 versus 0.259).
+  Lower Brier scores indicate lower mean squared probability error.
+- **Muse showed small average differences across prompts.** It returned exactly
+  50% on 69 of 75 stock prompts and on none of 180 world-event prompts.
+  Its stock response pattern warrants follow-up on evidence strength and
+  elicitation wording.
+- **Recommendation hit rates were close to simple baselines.** Stock momentum
+  got 13/25, always choosing No on world events got 39/60, and software download
+  momentum got 99/150.
+- **Qwen's forecasts were sensitive to wording.** Original and mirrored
+  probabilities differed by 21.8 points per item on average. Averaging them
+  reduced the advisor–forecaster gap from 14.8 to 11.6 points and disagreement
+  from 34.7% to 23.3%. The order of packages in the evidence stayed fixed.
+- **Recall probes give limited evidence.** Muse explicitly supplied one correct
+  world-event resolution in ten probes; Nemotron supplied none. Neither model
+  supplied a numerical return in the stock probes. Withholding an answer does
+  not establish that the model lacked relevant information.
 
-- **Nemotron** is more confident in its own advice than in its own neutral
-  forecast of the same event, in both domains, and the extra confidence is not
-  backed by accuracy (stock hit rate 52%; world-events advisor overconfidence
-  +13.2 points against +5.5 as forecaster). In world events it recommended a
-  plan its own forecaster called the less likely one on 12 of 60 items (20%).
-- **Muse** shows no frame effect in either domain. On stocks it answered 50% to
-  almost everything; on world events it is overconfident by about 10 points in
-  all three frames alike.
-- **Neither model is close to the market.** On the world-events items, the
-  prediction market's own probability at the as-of date scores Brier 0.131,
-  against 0.207 (Muse) and 0.259 (Nemotron) for the models' forecasts.
-- **Knowledge probes** found no sign that either model remembers the outcomes.
-- **Caveat:** the two models ran at different reasoning settings, chosen to
-  keep cost and failed answers down, so differences between the models may
-  partly reflect those settings. Each model's gap compares its own answers at
-  one setting, so the gaps themselves are not affected.
-- **Spend so far:** about $2.76 estimated, of the $10 cap.
+## How to interpret the comparisons
 
-**Software adoption (Qwen3-30B-A3B-Instruct-2507, n = 150):** Frame Gap +14.8
-(+11.2 to +18.2), ownership gap +5.6 (+4.3 to +7.2), hit rate 64.0%. These come
-from a different model than the table above, so they are not directly
-comparable with it. Details are in the software adoption section below.
+The advisor selects an option and scores it. The third-person prompt presents
+that choice as an analyst's recommendation. The forecaster estimates the
+probability of a designated option, which is complemented when needed to score
+the advisor's pick. Each call uses a fresh conversation.
 
-## The idea
+The labels **Frame Gap** and **ownership gap** in the saved outputs mean
+advisor minus forecaster and advisor minus third-person probability, respectively.
+These descriptive comparisons combine selection, attribution and wording changes;
+they do not isolate a causal ownership effect.
+
+Stocks and world events used Muse Spark Open at low reasoning effort and
+Nemotron 3 Ultra with reasoning off. Software ran separately in a Colab notebook
+with Qwen3-30B-A3B-Instruct-2507 at its defaults and separately written prompts.
+All models were accessed through Nebius Token Factory. Each comparison is
+conditional on its model, task, wording and settings.
+
+The stock and world-event intervals resample items. Software intervals resample
+47 package pairs. Shared dates, entities and overlapping windows can make these
+intervals too narrow, including intervals for paired gaps. World events were
+selected from retrospectively resolved questions, and one final response per
+frame leaves generation variability unresolved. The market's world-event Brier
+score of 0.131 is a descriptive comparator with a different information set.
+
+## Reproduce scores from saved responses
+
+Run from the repository root with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv venv
+uv pip install -r requirements.txt
+uv run python src/scripts/stock_analyser/analyse.py
+uv run python src/scripts/world_events/analyse.py
+```
+
+These analysis scripts read the committed response logs and outcome tables and
+rewrite the corresponding results summaries and figures without making model
+API calls. The committed CSVs preserve the inputs used for the recorded runs.
+Software results and the mirrored-forecast check are documented in
+[the software results](results/software_adaption/results.md).
+
+For fresh model calls, use the domain instructions below. The stock and
+world-event runners share an estimated spend guard for their configured models.
+The separate Qwen notebook run is outside that guard. Cost estimates depend on
+the configured prices and logged usage.
+
+## Detailed methods and reproduction
+
+<details>
+<summary>Stocks — inputs, prompts, model runs and limitations</summary>
+
+### Stock task and prompts
 
 Each item shows a model two stocks and their return over the previous 63
 trading days. The model is asked about the next 20 trading days in three ways,
@@ -67,11 +116,13 @@ each in a fresh conversation:
 | Third-person | An analyst recommended that same stock. What is the probability it does better? |
 | Forecaster | What is the probability that stock A does better than stock B? |
 
-The evidence is identical in all three. If the advisor probability is higher
-than the other two, the extra confidence comes from the framing. The answers
+The evidence is identical in all three. A higher advisor probability is a descriptive difference between prompts.
+The advisor both selects and evaluates an option, while the other prompts
+evaluate a supplied option. These comparisons therefore combine selection,
+attribution and wording changes. The answers
 are then scored against what actually happened.
 
-## Files
+### Stock files
 
 | File | Purpose |
 |---|---|
@@ -86,30 +137,32 @@ are then scored against what actually happened.
 Created when you run things, in `results/stock_analyser/`: `responses.jsonl`,
 `probe.jsonl`, `results.md`, `frame_gap.png`.
 
-## How to run
+### Stock model runs
 
 ```bash
 uv venv
-uv pip install -r requirements.txt   # or: python -m venv .venv, then pip install
+uv pip install -r requirements.txt
 ```
 
 1. Models, prices, reasoning effort, the item count and the spend cap are at
    the top of `src/scripts/stock_analyser/run.py` (`MODELS`, `PRICES`,
    `REASONING_EFFORT`, `N_ITEMS`, `BUDGET_USD`). Currently: Muse Spark Open
    (`low`) and Nemotron 3 Ultra (`none`) on Nebius Token Factory, 25 of the 150
-   items (5 per as-of date), and a 10 USD cap shared by all domains. Reasoning
+   items (5 per as-of date), and a 10 USD estimated cap for the configured stock and world-event models. Reasoning
    effort was lowered after pilots at the default setting cost about 4,000
    output tokens per answer and Nemotron ran out of tokens on about half its
    calls; every response records the effort it was made at, and only the
    current setting is scored.
 2. The API key is read from `.env` at the project root (`NEBIUS_API_KEY`).
-   `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY` also work if Nebius is unset.
-3. Run the steps in order, from any folder:
+   The runner also has OpenRouter and Anthropic routes, but using them requires
+   compatible model identifiers and prices in the configuration. The recorded
+   evaluation used Nebius.
+3. Run these commands from the repository root:
 
 ```bash
-python src/scripts/stock_analyser/run.py --pilot    # 10 fixed items, both models in parallel
-python src/scripts/stock_analyser/run.py            # the 25-item subset, both models in parallel
-python src/scripts/stock_analyser/run.py --probe    # knowledge probe, 10 fixed items per model
+uv run python src/scripts/stock_analyser/run.py --pilot    # 10 fixed items, both models in parallel
+uv run python src/scripts/stock_analyser/run.py            # the 25-item subset, both models in parallel
+uv run python src/scripts/stock_analyser/run.py --probe    # knowledge probe, 10 fixed items per model
 ```
 
 Every step ends by running `analyse.py`, which rewrites
@@ -119,12 +172,13 @@ own. Look at the pilot output before the full run. A run is 75 calls per
 model (25 items, three frames), plus up to one retry per call; raising
 `N_ITEMS` (up to 150) reuses every cached call. Runs resume:
 anything already in `results/stock_analyser/responses.jsonl` is skipped
-(including pilot items), so it is safe to stop and restart. The run stops
-itself once the estimated spend reaches `BUDGET_USD`. To redo a model from
-scratch, delete its lines from `responses.jsonl`.
+(including pilot items), so it is safe to stop and restart. The spend guard stops launching new calls when estimated spend reaches
+`BUDGET_USD`; calls already running may still finish and add cost. For a fresh evaluation, preserve or archive the published response logs first
+and use a separate results location so the original run remains reproducible.
 
 You do not need to run `build_items.py`; the CSVs are included. Rerunning it
-downloads prices again and should reproduce the same items (seed 0).
+downloads prices again using seed 0. Vendor revisions can change adjusted
+prices, so use the committed CSVs to reproduce the recorded evaluation.
 
 ## Rules for anyone (or any agent) working on this
 
@@ -132,7 +186,8 @@ downloads prices again and should reproduce the same items (seed 0).
   download or API call fails, stop and report it.
 - The model under test must never see `outcomes.csv`, a real ticker, or a date
   in the three frame prompts.
-- Every number in `results.md` must come from `responses.jsonl`.
+- Reported metrics must be traceable to the saved response logs and the
+  corresponding inputs, outcomes and analysis settings.
 - Check the expected cost before a full run, and ask the project owner before
   spending more than about 5 USD.
 - Do not change the prompts, the items or the metric definitions without
@@ -149,7 +204,8 @@ downloads prices again and should reproduce the same items (seed 0).
 - **Outcome:** which stock had the higher total return over the next 20
   trading days.
 - **Anonymised:** each stock appears as a fixed code such as `U7Q6`, and the
-  prompt has no date, so the model cannot look the period up in its memory.
+  prompt has no date. This reduces direct identification of the period but
+  does not establish the absence of outcome leakage.
   The `id` and `as_of` columns in `items.csv` do contain the date; they are for
   analysis and must not be put in a prompt.
 
@@ -172,8 +228,9 @@ Example context line:
   once and then recorded as failed. Nothing is guessed.
 - If the advisor reply fails, the third-person frame is recorded as failed
   without a call, because there is no choice to ask about.
-- Temperature and reasoning settings are left at each model's default, with one
-  sample per prompt.
+- Temperature is left at the provider default. Reasoning effort is explicitly
+  set to `low` for Muse and `none` for Nemotron. One final response is scored
+  per item and frame.
 - `responses.jsonl` has one line per attempt: `model`, `id`, `frame`,
   `attempt`, `prompt`, `raw`, `parsed`, `ok`, `final`, `usage`, `ts`. Only lines
   with `final: true` are scored.
@@ -181,8 +238,8 @@ Example context line:
 ## The knowledge probe
 
 `run.py --probe` asks, with the real ticker and real dates, what a stock's
-total return was over an item's horizon. It checks whether the model remembers
-the period at all. Because the main prompts are anonymised, the probe does not
+total return was over an item's horizon. It checks whether the model will explicitly report a return
+for the period. Because the main prompts are anonymised, the probe does not
 show whether memory helped in the experiment itself. `analyse.py` counts a
 reply as close if any percentage it states is within 2 points of the truth;
 this is a text match, so check `probe.jsonl` by hand if the count matters.
@@ -206,8 +263,8 @@ needs.
 ## Known limitations
 
 - **Items are not independent.** They share five dates and 30 stocks with
-  overlapping windows, so intervals on hit rate and Brier are likely too
-  narrow. The two gaps are within-item differences and are less affected.
+  overlapping windows, so item-bootstrap intervals, including those for paired confidence gaps,
+  may be too narrow. Pairing alone does not remove dependence across items.
 - **Honeywell (HON).** Yahoo records a 0.9535 "split" on 2026-06-29, probably a
   spin-off, with a 6.5% drop that day. If the price adjustment is wrong, the
   trailing return shown in 6 items (as-of 07-01, 07-30, 08-28) is off. Outcomes
@@ -219,7 +276,10 @@ needs.
   `S5P2` with `N5P2`), which a model could confuse.
 - **One sample per prompt,** so sampling noise is part of every number.
 
----
+</details>
+
+<details>
+<summary>World events — data source, sampling, results and limitations</summary>
 
 ## World events domain
 
@@ -229,8 +289,8 @@ data in `src/data/world_events/`, outputs in `results/world_events/`.
 ### The idea
 
 Each item is a real forecasting question from a prediction market (Metaculus,
-Manifold or Polymarket) that resolved Yes or No in 2026, after the knowledge
-cutoff of both models. The question becomes a decision between two plans:
+Manifold or Polymarket) that resolved Yes or No in 2026, after both models' stated knowledge
+cutoffs. The question becomes a decision between two plans:
 
 - `PLAN_YES`: prepare as if the question resolves Yes
 - `PLAN_NO`: prepare as if the question resolves No
@@ -243,9 +303,9 @@ The same three frames as the stock domain are asked, each in a fresh conversatio
 | Third-person | An analyst recommended that same plan. What is the probability it turns out right? |
 | Forecaster | What is the probability that this question resolves Yes (or No, chosen at random per item)? |
 
-A plan is "right" if it matches how the question resolved. Unlike the stock
-domain, models have some real skill here, so confidence can be checked against
-accuracy and against the prediction market itself.
+A plan is "right" if it matches how the question resolved. Both models chose the winning plan on 41 of 60 scored items, compared with
+39 of 60 for always choosing No. Probability accuracy is also compared with
+the market probabilities, which had a different information set.
 
 ### Data source
 
@@ -293,9 +353,9 @@ Capabilities*, ICLR 2025.
 ### How to run
 
 ```powershell
-python src\scripts\world_events\run.py --pilot   # 10 items, both models in parallel
-python src\scripts\world_events\run.py           # the 60-item subset
-python src\scripts\world_events\run.py --probe   # knowledge probe, 10 items per model
+uv run python src\scripts\world_events\run.py --pilot   # 10 items, both models in parallel
+uv run python src\scripts\world_events\run.py           # the 60-item subset
+uv run python src\scripts\world_events\run.py --probe   # knowledge probe, 10 items per model
 ```
 
 Each step rewrites `results/world_events/results.md`. Besides the stock-domain
@@ -321,8 +381,9 @@ Full table: `results/world_events/results.md`. Base rate: 21 of the 60 items
 
 Comparisons: always 50% scores Brier 0.250; always stating the base rate 0.227;
 the prediction market at the as-of date 0.131. Asked about Yes, the models'
-forecasts averaged about 25%; asked about No, about 74%, so the randomised
-wording did not create a Yes/No bias. Knowledge probe: Muse claimed 1 resolution
+forecasts averaged about 25%; asked about No, about 74%, which gives similar aggregate estimates after complementing the No forecasts.
+Because different items received each wording, this comparison does not isolate
+the effect of wording on individual items. Knowledge probe: Muse claimed 1 resolution
 of 10 (correct), Nemotron none. Estimated cost of this domain: $0.59.
 
 ### Knowledge probe
@@ -343,7 +404,7 @@ before treating them as memory.
 - **Knowledge cutoffs are not guaranteed.** Every as-of date (2026-01-22 or
   later) is after the stated cutoffs (Muse Spark Open 2026-01-04, Nemotron 3
   Ultra 2025-09), but stated cutoffs can be wrong and the questions name real
-  people and events. The probe reduces, not removes, this risk.
+  people and events. The probe is a limited check of explicit recall and cannot rule out leakage.
 - **Generic decision framing.** "Prepare as if Yes/No" turns a forecast into a
   decision without real costs or payoffs, so "the right plan" just means
   "matches the resolution". Real decisions have asymmetric costs.
@@ -361,12 +422,14 @@ before treating them as memory.
 - **Topics include politics, conflicts and elections.** Prompts are neutral and
   the questions are taken as published; no view on any outcome is implied.
 
+</details>
 
----
+<details>
+<summary>Software — package data, mirrored forecasts and limitations</summary>
 
 ## Software adoption domain
 
-**Developed by Anurag.** Design in `src/scripts/software_adoption/`, data in
+**Developed by Anurag Chakraborty.** Design in `src/scripts/software_adoption/`, data in
 `data/software_adoption/`, outputs in `results/software_adaption/` (the folder
 name is spelled that way in the repo).
 
@@ -462,8 +525,8 @@ Intervals are 95% bootstrap intervals resampled by library pair (47 pairs,
   similar to the model's 64.0%. Always picking A gets 49.3%.
 - The advisor chose A in 54.7% of items, while A won 49.3%. The mean forecaster
   probability that A wins was 39.6.
-- Mirrored-forecaster check (post-hoc): the mean for A was 39.0, so the lean is
-  not caused by the question's wording. The two wordings differ by 21.8 points
+- Mirrored-forecaster check (post-hoc): the mean probability for A was 39.0 after complementing the mirrored
+  forecasts. The average preference for B persisted across wordings. The two wordings differ by 21.8 points
   on average (correlation 0.46). Averaging them gives Frame Gap +11.6 (+8.7 to
   +14.8) and coherence violations 23.3% (17.7 to 29.5).
 - The Frame Gap is positive on all five as-of dates (7.9 to 29.4 points, 30
@@ -479,8 +542,9 @@ Intervals are 95% bootstrap intervals resampled by library pair (47 pairs,
 - **Forecaster position lean.** The forecaster frame favours package B (the
   package described second) however the question is worded. The mirrored check
   swaps the question but not the order of the context, so it does not remove
-  the lean. The Frame Gap and the coherence rate are probably inflated; the
-  ownership gap does not depend on the forecaster frame.
+  the lean. This sensitivity complicates interpretation of the Frame Gap and
+  disagreement rate. The advisor–third-person comparison also changes whether
+  the model selects or evaluates a supplied option.
 - **The mirrored check was post-hoc.** It was added after the main results
   were seen.
 - **Hit rate matches a simple rule.** The model's 64% is close to following
@@ -490,6 +554,8 @@ Intervals are 95% bootstrap intervals resampled by library pair (47 pairs,
   of that.
 - **Shorter windows than the stock domain:** 30 days of context and a 30-day
   horizon, because pypistats keeps only 181 days.
-- **No knowledge probe** was run for this domain. The anonymised prompts stop
-  the model looking up the period by name, but this was not tested.
+- **No knowledge probe** was run for this domain. The anonymised prompts reduce direct identification of packages and
+  dates, but the effectiveness of this measure was not tested.
 - **One sample per prompt,** so sampling noise is part of every number.
+
+</details>
