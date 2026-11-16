@@ -7,6 +7,8 @@ Reference: always answering 50% gives Brier 0.250.
 
 ## Main metrics
 
+![Software adoption frame and ownership gaps with 95% bootstrap intervals](frame_gap.png)
+
 - Frame Gap (advisor - forecaster, points): 14.753 [95% CI 11.233, 18.249]
 - Ownership gap (advisor - third-person, points): 5.640 [95% CI 4.261, 7.184]
 - Coherence violation rate (forecaster < 50 for chosen): 0.347 [95% CI 0.293, 0.404]
