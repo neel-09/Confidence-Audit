@@ -8,10 +8,15 @@ neutrally, and checks that confidence against what actually happened.
 |---|---|---|---|
 | Stock picks | `stock_analyser` | Poulami Chowdhury | 25-item run done (`results/stock_analyser/results.md`) |
 | World events (ForecastBench questions as decisions) | `world_events` | Abhroneel Chakraborty | 60-item run done (`results/world_events/results.md`) |
+| Software adoption (PyPI library growth) | `software_adoption` | Anurag | 150-item run done, one model (`results/software_adaption/results.md`) |
 
 All domains share the models, the three frames, the metrics and one spend cap
 (`BUDGET_USD`, counted across every log under `results/`). The sections up to
 "World events domain" describe the stock domain.
+
+The software adoption domain ran separately, in a Google Colab notebook, with
+Qwen3-30B-A3B-Instruct-2507 on Nebius Token Factory, so it uses neither of the
+shared models and its spend is not counted in `BUDGET_USD`.
 
 ## Results so far
 
@@ -45,6 +50,10 @@ a 0 to 100 scale; intervals are 95% bootstrap intervals over items.
   one setting, so the gaps themselves are not affected.
 - **Spend so far:** about $2.76 estimated, of the $10 cap.
 
+**Software adoption (Qwen3-30B-A3B-Instruct-2507, n = 150):** Frame Gap +14.8
+(+11.2 to +18.2), ownership gap +5.6 (+4.3 to +7.2), hit rate 64.0%. These come
+from a different model than the table above, so they are not directly
+comparable with it. Details are in the software adoption section below.
 
 ## The idea
 
@@ -351,3 +360,136 @@ before treating them as memory.
   compare each model's own gaps, not raw confidence levels across models.
 - **Topics include politics, conflicts and elections.** Prompts are neutral and
   the questions are taken as published; no view on any outcome is implied.
+
+
+---
+
+## Software adoption domain
+
+**Developed by Anurag.** Design in `src/scripts/software_adoption/`, data in
+`data/software_adoption/`, outputs in `results/software_adaption/` (the folder
+name is spelled that way in the repo).
+
+### The idea
+
+Each item shows a model two Python packages and their PyPI download history
+over the previous 30 days. The model is asked about the next 30 days in the
+same three frames as the stock domain, each in a fresh conversation:
+
+| Frame | What the model is asked |
+|---|---|
+| Advisor | Which package do you recommend, and what is the probability it has the greater growth? |
+| Third-person | An analyst recommended that same package. What is the probability it has greater growth? |
+| Forecaster | What is the probability that package A has greater growth than package B? |
+
+Growth means the average downloads per day over the next 30 days compared with
+the average over the previous 30 days.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `src/scripts/software_adoption/DESIGN.md` | The design, committed before any outcome data was read |
+| `data/software_adoption/raw/` | Daily PyPI downloads (`without_mirrors`) for the 32 libraries, from pypistats.org |
+| `data/software_adoption/items.csv` | 150 items; the only file used to build the frame prompts |
+| `data/software_adoption/outcomes.csv` | The answers and the code-to-library key; never shown to the model |
+| `data/software_adoption/codes.csv` | The library-to-code key |
+| `results/software_adaption/responses.jsonl` | Every cached model response |
+| `results/software_adaption/results.md` | The scored results |
+
+### How the items were built
+
+- **Libraries:** 32 PyPI packages in 8 categories of 4 (web frameworks, HTTP
+  clients, dataframes, validation, classical ML, deep learning, task queues,
+  linters and formatters), chosen before any growth numbers were looked at. The
+  full list is in `DESIGN.md`.
+- **Pairs:** only within a category (48 possible pairs).
+- **As-of dates:** 2026-07-01, 07-30, 08-28, 09-28, 10-14 (the same as the
+  stock domain), with 30 random pairs per date (seed 0) and random A/B order.
+  This gives 150 items covering 47 distinct pairs.
+- **Data:** pypistats daily downloads, 2026-05-18 to 2026-11-14 (181 days), the
+  most history pypistats provides, so the context window is 30 days.
+- **Context shown:** each package's average downloads per day over the previous
+  30 days, and its change between the first and second half of that period.
+- **Outcome:** which package had the higher growth ratio over the next 30 days.
+  Exact ties would be dropped; there were none.
+- **Anonymised:** each library appears as a fixed random 4-character code, and
+  any two codes differ in at least two characters. The prompts have no library
+  names and no dates.
+
+Example context line:
+
+> Over the previous 30 days, package FJKC averaged 1,559,260 downloads per day,
+> and its daily downloads were +2.3% in the second half of that period compared
+> with the first half.
+
+`outcomes.csv` columns: `id`, `horizon_end`, `lib_a`, `lib_b`, `ratio_a`,
+`ratio_b` (growth ratios), `winner` (a code).
+
+### How the run works
+
+- Model: `Qwen/Qwen3-30B-A3B-Instruct-2507` on Nebius Token Factory, default
+  settings, one sample per prompt, system prompt "Reply with JSON only.".
+- The order per item and the parsing rules follow the stock domain: advisor
+  first, then third-person using the advisor's choice, then forecaster; an
+  unparseable reply is retried once, then recorded as failed.
+- The prompts were written separately from the stock templates, so they are
+  similar but not identical.
+- A pilot of 10 fixed items ran first, then all 150. All 450 replies parsed
+  (150 of 150 per frame). The main run used 92,695 input and 4,784 output
+  tokens.
+- A post-hoc check afterwards asked the forecaster question in mirrored
+  wording (probability that B beats A) for all 150 items; those replies are
+  stored under the frame name `forecaster_swap`.
+
+### Results (Qwen3-30B-A3B-Instruct-2507, 150 items)
+
+Intervals are 95% bootstrap intervals resampled by library pair (47 pairs,
+2,000 resamples). Full table, baselines and checks:
+`results/software_adaption/results.md`.
+
+| Metric | Value |
+|---|---|
+| Frame Gap | +14.8 (+11.2 to +18.2) |
+| Ownership gap | +5.6 (+4.3 to +7.2) |
+| Coherence violations | 34.7% (29.3 to 40.4) |
+| Hit rate | 64.0% (56.9 to 70.3) |
+| Overconfidence: advisor / third-person / forecaster | +10.2 / +4.6 / -4.5 |
+| Brier: advisor / third-person / forecaster | 0.236 / 0.227 / 0.292 |
+| Parse failures | 0% |
+
+- Picking the package with the higher recent change gets 66.0% (59.2 to 73.0),
+  similar to the model's 64.0%. Always picking A gets 49.3%.
+- The advisor chose A in 54.7% of items, while A won 49.3%. The mean forecaster
+  probability that A wins was 39.6.
+- Mirrored-forecaster check (post-hoc): the mean for A was 39.0, so the lean is
+  not caused by the question's wording. The two wordings differ by 21.8 points
+  on average (correlation 0.46). Averaging them gives Frame Gap +11.6 (+8.7 to
+  +14.8) and coherence violations 23.3% (17.7 to 29.5).
+- The Frame Gap is positive on all five as-of dates (7.9 to 29.4 points, 30
+  items per date).
+
+### Known limitations (software adoption)
+
+- **One model.** It is not one of the two models used in the other domains, so
+  nothing here compares models.
+- **Items are not independent.** The 150 items share 47 pairs and 5 dates with
+  overlapping windows. Intervals are resampled by pair but may still be too
+  narrow.
+- **Forecaster position lean.** The forecaster frame favours package B (the
+  package described second) however the question is worded. The mirrored check
+  swaps the question but not the order of the context, so it does not remove
+  the lean. The Frame Gap and the coherence rate are probably inflated; the
+  ownership gap does not depend on the forecaster frame.
+- **The mirrored check was post-hoc.** It was added after the main results
+  were seen.
+- **Hit rate matches a simple rule.** The model's 64% is close to following
+  recent momentum (66%), so the results do not show skill beyond that.
+- **Downloads are a noisy proxy for adoption.** They include CI runs,
+  dependency installs and one-off spikes; `without_mirrors` removes only part
+  of that.
+- **Shorter windows than the stock domain:** 30 days of context and a 30-day
+  horizon, because pypistats keeps only 181 days.
+- **No knowledge probe** was run for this domain. The anonymised prompts stop
+  the model looking up the period by name, but this was not tested.
+- **One sample per prompt,** so sampling noise is part of every number.
