@@ -2,6 +2,8 @@
 
 **When Forecasts Become Advice — Auditing LLM Confidence Across Three Domains**
 
+**Paper:** [Download the paper (PDF)](When_Forecasts_Become_Advice.pdf)
+
 We test whether a language model reports different probabilities when it gives
 advice, evaluates an analyst's recommendation, or forecasts the same event
 neutrally. We score those probabilities against recorded outcomes in stocks,
